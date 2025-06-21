@@ -1,0 +1,89 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+    overflow: hidden;
+}
+
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-canvas {
+    border: 2px solid #8B4513;
+    background-color: #2F1B14;
+    cursor: grab;
+}
+
+#game-canvas:active {
+    cursor: grabbing;
+}
+
+#ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+#controls-info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #8B4513;
+    pointer-events: auto;
+}
+
+#controls-info h3 {
+    color: #D2691E;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+#controls-info p {
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #f0f0f0;
+}
+
+#game-info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #8B4513;
+    text-align: right;
+}
+
+#game-info p {
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #f0f0f0;
+}
+
+#fps-counter {
+    color: #90EE90 !important;
+}
+
+#camera-info {
+    color: #87CEEB !important;
+} 

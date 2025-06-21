@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTS-01: Desert Warfare</title>
+    <link rel="stylesheet" href="src/client/styles/main.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="1200" height="800"></canvas>
+        <div id="ui-overlay">
+            <div id="controls-info">
+                <h3>Controls:</h3>
+                <p>• Mouse Drag: Pan camera</p>
+                <p>• Mouse Wheel: Zoom in/out</p>
+                <p>• Arrow Keys: Move camera</p>
+                <p>• Space: Center view</p>
+                <p>• Left Click: Spawn harvester / Place building</p>
+                <p>• B Key: Cycle building types</p>
+                <p>• E Key: Spawn enemy (testing)</p>
+                <p>• Esc: Exit build mode</p>
+                <p>• Right Click: Cancel / Deselect</p>
+                <p>• Hold 'I': Debug info</p>
+            </div>
+            <div id="game-info">
+                <p>Milestone 6: AI & Multiple Factions</p>
+                <p id="fps-counter">FPS: 60</p>
+                <p id="camera-info">Camera: (0, 0) Zoom: 1.0</p>
+                <p id="resource-info">Spice: 0 | Harvesters: 0</p>
+                <p id="depot-info">Depot: 0/1000 (0%)</p>
+                <p id="building-info">Buildings: 0 | Constructed: 0</p>
+                <p id="build-mode-info">Build Mode: Off</p>
+                <p id="combat-info">Enemies: 0 | Wave: 1</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="src/client/engine/Game.js"></script>
+</body>
+</html> 

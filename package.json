@@ -1,0 +1,17 @@
+{
+  "name": "rts-01",
+  "version": "0.1.0",
+  "description": "Web-based Real-Time Strategy Game inspired by Dune 2",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python -m http.server 3000 || python3 -m http.server 3000",
+    "start": "npm run dev"
+  },
+  "keywords": ["rts", "game", "dune", "strategy", "html5", "canvas"],
+  "author": "josephshum",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josephshum/RTS-01.git"
+  }
+} 
