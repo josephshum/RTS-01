@@ -57,6 +57,12 @@ export class Renderer {
     }
     
     getTerrainType(noise) {
+        // Add spice patches randomly across the map
+        const spiceChance = Math.random();
+        if (spiceChance < 0.08 && noise > 0.2 && noise < 0.7) { // 8% chance for spice in suitable terrain
+            return 'spice';
+        }
+        
         if (noise < 0.3) return 'sand';
         if (noise < 0.6) return 'dune';
         if (noise < 0.8) return 'hardpan';
@@ -75,6 +81,8 @@ export class Renderer {
                 return `rgb(${Math.floor(160 * brightness)}, ${Math.floor(140 * brightness)}, ${Math.floor(100 * brightness)})`;
             case 'rock':
                 return `rgb(${Math.floor(120 * brightness)}, ${Math.floor(100 * brightness)}, ${Math.floor(80 * brightness)})`;
+            case 'spice':
+                return `rgb(${Math.floor(255 * brightness)}, ${Math.floor(200 * brightness)}, ${Math.floor(50 * brightness)})`;
             default:
                 return '#C2B280';
         }

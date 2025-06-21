@@ -195,6 +195,25 @@ export class ResourceManager {
         };
     }
     
+    // Get total spice owned by the player (from depot and buildings)
+    getTotalPlayerSpice(depot, buildings = []) {
+        let totalSpice = 0;
+        
+        // Add spice from depot
+        if (depot && depot.getInfo) {
+            totalSpice += depot.getInfo().stored;
+        }
+        
+        // Add spice from buildings that can store spice (like refineries)
+        for (const building of buildings) {
+            if (building.spiceStored && typeof building.spiceStored === 'number') {
+                totalSpice += building.spiceStored;
+            }
+        }
+        
+        return Math.round(totalSpice);
+    }
+
     // Debug method to add a spice node at a specific location
     addSpiceNode(x, y, amount = null) {
         const spiceAmount = amount || (this.minSpiceAmount + Math.random() * (this.maxSpiceAmount - this.minSpiceAmount));

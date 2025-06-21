@@ -43,13 +43,11 @@ export class SpiceRefinery extends Building {
     }
     
     processSpice(deltaTime, gameState) {
-        // Find nearby harvesters that need processing
-        if (gameState.harvesters) {
-            for (const harvester of gameState.harvesters) {
-                if (this.canProcessHarvester(harvester)) {
-                    this.processHarvesterCargo(harvester);
-                }
-            }
+        // Auto-transfer excess spice to depot if available
+        if (this.spiceStorage > this.maxSpiceStorage * 0.8 && gameState.depot) {
+            const transferAmount = Math.min(this.spiceStorage * 0.1, 10); // Transfer 10% or 10 units max per call
+            const transferred = gameState.depot.addSpice(transferAmount);
+            this.spiceStorage -= transferred;
         }
     }
     

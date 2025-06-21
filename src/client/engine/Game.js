@@ -301,6 +301,14 @@ export class Game {
             this.cameraInfo.innerHTML = `Camera: (${Math.round(this.camera.x)}, ${Math.round(this.camera.y)}) Zoom: ${this.camera.zoom.toFixed(2)}x`;
         }
         
+        // Update faction information
+        const factionInfo = document.getElementById('faction-info');
+        if (factionInfo) {
+            const factionData = this.factionManager.getFaction(this.playerFaction);
+            factionInfo.innerHTML = `Faction: ${factionData.name}`;
+            factionInfo.style.color = factionData.color;
+        }
+        
         // Update resource information
         if (this.resourceInfo) {
             const spiceStats = this.resourceManager.getSpiceStats();
@@ -375,6 +383,11 @@ export class Game {
             // Spawn enemy for testing
             const mousePos = this.inputManager.getWorldMousePos();
             this.enemyManager.spawnEnemyAt(mousePos.x, mousePos.y, 'Raider');
+        }
+        
+        if (this.inputManager.isKeyPressedDebounced('KeyF')) {
+            // Cycle through factions (F key)
+            this.cycleFaction();
         }
         
         // Handle mouse clicks
@@ -495,8 +508,24 @@ export class Game {
     setPlayerFaction(factionId) {
         if (this.factionManager.getFaction(factionId)) {
             this.playerFaction = factionId;
+            // Reinitialize technology tree for new faction
+            this.technologyTree.initializePlayer(1, this.playerFaction);
             console.log(`🏛️ Player faction changed to ${factionId.toUpperCase()}`);
         }
+    }
+    
+    // Cycle through available factions
+    cycleFaction() {
+        const availableFactions = ['atreides', 'harkonnen', 'ordos'];
+        const currentIndex = availableFactions.indexOf(this.playerFaction);
+        const nextIndex = (currentIndex + 1) % availableFactions.length;
+        const nextFaction = availableFactions[nextIndex];
+        
+        this.setPlayerFaction(nextFaction);
+        
+        // Display faction change notification
+        const factionData = this.factionManager.getFaction(nextFaction);
+        console.log(`🏛️ Switched to ${factionData.name}: ${factionData.description}`);
     }
     
     // Research technology for player

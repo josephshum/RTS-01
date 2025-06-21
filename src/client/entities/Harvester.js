@@ -167,17 +167,19 @@ export class Harvester {
                     const cargoAmount = this.currentCargo; // Store before processing
                     const processed = refinery.processHarvesterCargo(this);
                     if (processed > 0) {
-                        console.log(`🚚 Harvester delivered ${cargoAmount} spice to refinery (+20% bonus = ${processed.toFixed(1)} processed)`);
+                        console.log(`🚚 Harvester ${this.id} delivered ${cargoAmount} spice to refinery (+20% bonus = ${processed.toFixed(1)} processed)`);
                         this.setState('idle');
                         delivered = true;
                         break;
+                    } else {
+                        console.log(`⚠️ Harvester ${this.id} failed to deliver to refinery (processed: ${processed})`);
                     }
                 }
             }
             
             // If no refinery worked, try depot
             if (!delivered && depot && this.isNearBuilding(depot)) {
-                console.log(`🚚 Harvester delivered ${this.currentCargo} spice to depot`);
+                console.log(`🚚 Harvester ${this.id} delivered ${this.currentCargo} spice to depot`);
                 depot.addSpice(this.currentCargo);
                 this.currentCargo = 0;
                 this.setState('idle');
@@ -185,10 +187,26 @@ export class Harvester {
             }
             
             if (!delivered) {
-                // Recalculate path to best target
-                const returnTarget = this.chooseBestReturnTarget(depot, refineries);
-                if (returnTarget) {
-                    this.findPathTo(returnTarget.x + returnTarget.width / 2, returnTarget.y + returnTarget.height / 2, pathfinder);
+                // Force delivery if we have cargo but can't find a target
+                if (this.currentCargo > 0) {
+                    console.log(`⚠️ Harvester ${this.id} forcing delivery - cargo: ${this.currentCargo}, near depot: ${depot ? this.isNearBuilding(depot) : 'no depot'}`);
+                    if (depot) {
+                        depot.addSpice(this.currentCargo);
+                        this.currentCargo = 0;
+                        this.setState('idle');
+                        delivered = true;
+                    }
+                }
+                
+                if (!delivered) {
+                    // Recalculate path to best target
+                    const returnTarget = this.chooseBestReturnTarget(depot, refineries);
+                    if (returnTarget) {
+                        this.findPathTo(returnTarget.x + returnTarget.width / 2, returnTarget.y + returnTarget.height / 2, pathfinder);
+                    } else {
+                        // No valid target, go idle
+                        this.setState('idle');
+                    }
                 }
             }
         } else {
@@ -374,8 +392,8 @@ export class Harvester {
         const dy = this.y - (building.y + building.height / 2);
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Use building's processing range if it's a refinery, otherwise use standard range
-        const deliveryRange = building.processingRange ? building.processingRange * 32 : 60;
+        // Use a consistent delivery range for all buildings
+        const deliveryRange = 80; // pixels
         
         return distance < deliveryRange;
     }
