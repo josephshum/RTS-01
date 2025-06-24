@@ -210,6 +210,11 @@ export class Renderer {
                 this.ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, width + 4, height + 4);
             }
             
+            // Special rendering for turrets
+            if (building.type === 'GunTurret') {
+                this.renderTurret(building, screenPos, width, height);
+            }
+            
             // Turret range indicator (when selected or in debug mode)
             if (building.type === 'GunTurret' && (building.isSelected || this.layers.debug)) {
                 this.renderTurretRange(building, screenPos, width, height);
@@ -282,6 +287,138 @@ export class Renderer {
             case 'SpiceRefinery': return '#FFD700';
             case 'GunTurret': return '#FF4500';
             default: return '#666666';
+        }
+    }
+    
+    renderTurret(turret, screenPos, width, height) {
+        const centerX = screenPos.x + width / 2;
+        const centerY = screenPos.y + height / 2;
+        const time = Date.now() * 0.001;
+        
+        this.ctx.save();
+        
+        // Enhanced turret base
+        const baseRadius = Math.min(width, height) * 0.4;
+        
+        // Base platform (dark gray)
+        this.ctx.fillStyle = '#2A2A2A';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, baseRadius + 4, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Main turret base (orange)
+        this.ctx.fillStyle = turret.isActive ? '#FF4500' : '#8B2500';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Rotating cannon assembly
+        this.ctx.translate(centerX, centerY);
+        this.ctx.rotate(turret.rotation || 0);
+        
+        // Cannon barrel
+        const barrelLength = width * 0.6;
+        const barrelWidth = height * 0.15;
+        
+        // Barrel shadow/outline
+        this.ctx.fillStyle = '#1A1A1A';
+        this.ctx.fillRect(-barrelWidth/2, -barrelWidth/2 - 1, barrelLength + 2, barrelWidth + 2);
+        
+        // Main barrel
+        this.ctx.fillStyle = '#333333';
+        this.ctx.fillRect(-barrelWidth/2, -barrelWidth/2, barrelLength, barrelWidth);
+        
+        // Barrel details
+        this.ctx.fillStyle = '#555555';
+        this.ctx.fillRect(barrelLength * 0.1, -barrelWidth/2, 2, barrelWidth); // Band
+        this.ctx.fillRect(barrelLength * 0.3, -barrelWidth/2, 1, barrelWidth); // Ring
+        
+        // Barrel tip
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillRect(barrelLength, -barrelWidth/4, 3, barrelWidth/2);
+        
+        // Muzzle flash effect
+        if (turret.muzzleFlash && turret.muzzleFlash > 0) {
+            const flashSize = barrelWidth * (1 + turret.muzzleFlash);
+            const flashLength = barrelLength * 0.3 * turret.muzzleFlash;
+            
+            this.ctx.fillStyle = `rgba(255, 255, 0, ${turret.muzzleFlash})`;
+            this.ctx.fillRect(barrelLength, -flashSize/2, flashLength, flashSize);
+            
+            // Muzzle smoke
+            this.ctx.fillStyle = `rgba(128, 128, 128, ${turret.muzzleFlash * 0.5})`;
+            this.ctx.fillRect(barrelLength + flashLength, -flashSize/3, flashLength/2, flashSize/1.5);
+        }
+        
+        this.ctx.restore();
+        
+        // Targeting indicator
+        if (turret.currentTarget && turret.isActive) {
+            const targetScreenPos = this.camera.worldToScreen(turret.currentTarget.x, turret.currentTarget.y);
+            
+            // Targeting line
+            this.ctx.strokeStyle = `rgba(255, 0, 0, ${0.3 + 0.2 * Math.sin(time * 5)})`;
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(centerX, centerY);
+            this.ctx.lineTo(targetScreenPos.x, targetScreenPos.y);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            
+            // Target reticle
+            const reticleSize = 8 * this.camera.zoom;
+            this.ctx.strokeStyle = `rgba(255, 0, 0, ${0.6 + 0.3 * Math.sin(time * 8)})`;
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(
+                targetScreenPos.x - reticleSize/2,
+                targetScreenPos.y - reticleSize/2,
+                reticleSize,
+                reticleSize
+            );
+            
+            // Crosshairs
+            this.ctx.beginPath();
+            this.ctx.moveTo(targetScreenPos.x - reticleSize, targetScreenPos.y);
+            this.ctx.lineTo(targetScreenPos.x + reticleSize, targetScreenPos.y);
+            this.ctx.moveTo(targetScreenPos.x, targetScreenPos.y - reticleSize);
+            this.ctx.lineTo(targetScreenPos.x, targetScreenPos.y + reticleSize);
+            this.ctx.stroke();
+        }
+        
+        // Veterancy indicators around the base
+        if (turret.veterancyLevel > 0) {
+            const starRadius = baseRadius + 8;
+            for (let i = 0; i < turret.veterancyLevel; i++) {
+                const angle = (i * Math.PI * 2) / turret.maxVeterancyLevel;
+                const starX = centerX + Math.cos(angle) * starRadius;
+                const starY = centerY + Math.sin(angle) * starRadius;
+                
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.font = `bold ${8 * this.camera.zoom}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('★', starX, starY + 3);
+            }
+        }
+        
+        // Status indicators
+        if (this.camera.zoom > 0.8) {
+            // Activity status
+            const statusY = screenPos.y + height + 15 * this.camera.zoom;
+            this.ctx.fillStyle = turret.isActive ? '#00FF00' : '#FF0000';
+            this.ctx.font = `${8 * this.camera.zoom}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(
+                turret.isActive ? 'ONLINE' : 'OFFLINE',
+                centerX,
+                statusY
+            );
+            
+            // Target status
+            if (turret.currentTarget) {
+                this.ctx.fillStyle = '#FFFF00';
+                this.ctx.fillText('TRACKING', centerX, statusY + 10 * this.camera.zoom);
+            }
         }
     }
     
@@ -411,43 +548,12 @@ export class Renderer {
     }
     
     renderUnits(gameState, bounds) {
-        // Render harvesters
+        // Render harvesters with enhanced visuals
         if (gameState.harvesters) {
             for (const harvester of gameState.harvesters) {
                 if (!this.camera.isVisible(harvester.x, harvester.y, 50)) continue;
                 
-                const screenPos = this.camera.worldToScreen(harvester.x, harvester.y);
-                const width = harvester.width * this.camera.zoom;
-                const height = harvester.height * this.camera.zoom;
-                
-                // Harvester body
-                this.ctx.fillStyle = harvester.getStateColor();
-                this.ctx.fillRect(screenPos.x, screenPos.y, width, height);
-                
-                // Cargo indicator
-                if (harvester.currentCargo > 0) {
-                    const cargoPercent = harvester.getCargoPercentage();
-                    const cargoBarHeight = 4 * this.camera.zoom;
-                    this.ctx.fillStyle = '#FFD700';
-                    this.ctx.fillRect(screenPos.x, screenPos.y - 6 * this.camera.zoom, width * cargoPercent, cargoBarHeight);
-                }
-                
-                // Health bar
-                if (harvester.currentHealth < harvester.maxHealth) {
-                    const healthPercent = harvester.getHealthPercentage();
-                    const healthBarHeight = 4 * this.camera.zoom;
-                    this.ctx.fillStyle = '#FF0000';
-                    this.ctx.fillRect(screenPos.x, screenPos.y + height + 2 * this.camera.zoom, width, healthBarHeight);
-                    this.ctx.fillStyle = '#00FF00';
-                    this.ctx.fillRect(screenPos.x, screenPos.y + height + 2 * this.camera.zoom, width * healthPercent, healthBarHeight);
-                }
-                
-                // Selection indicator
-                if (harvester.isSelected) {
-                    this.ctx.strokeStyle = '#00FFFF';
-                    this.ctx.lineWidth = 2;
-                    this.ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, width + 4, height + 4);
-                }
+                this.renderHarvester(harvester);
             }
         }
         
@@ -469,27 +575,511 @@ export class Renderer {
             }
         }
         
-        // Render enemies
+        // Render enemies with enhanced visuals
         if (gameState.enemies) {
             for (const enemy of gameState.enemies) {
                 if (enemy.state === 'dead' || !this.camera.isVisible(enemy.x, enemy.y, 50)) continue;
                 
-                const screenPos = this.camera.worldToScreen(enemy.x, enemy.y);
-                const size = enemy.size * this.camera.zoom;
-                
-                this.ctx.fillStyle = '#FF0000';
-                this.ctx.fillRect(screenPos.x, screenPos.y, size, size);
-                
-                // Health bar
-                if (enemy.currentHealth < enemy.maxHealth) {
-                    const healthPercent = enemy.currentHealth / enemy.maxHealth;
-                    const healthBarHeight = 4 * this.camera.zoom;
-                    this.ctx.fillStyle = '#FF0000';
-                    this.ctx.fillRect(screenPos.x, screenPos.y - 8 * this.camera.zoom, size, healthBarHeight);
-                    this.ctx.fillStyle = '#00FF00';
-                    this.ctx.fillRect(screenPos.x, screenPos.y - 8 * this.camera.zoom, size * healthPercent, healthBarHeight);
+                this.renderEnemy(enemy);
+            }
+        }
+    }
+    
+    renderHarvester(harvester) {
+        const screenPos = this.camera.worldToScreen(harvester.x, harvester.y);
+        const width = harvester.width * this.camera.zoom;
+        const height = harvester.height * this.camera.zoom;
+        const centerX = screenPos.x + width / 2;
+        const centerY = screenPos.y + height / 2;
+        const time = Date.now() * 0.001;
+        
+        this.ctx.save();
+        this.ctx.translate(centerX, centerY);
+        
+        // Rotate based on movement direction
+        if (harvester.rotation !== undefined) {
+            this.ctx.rotate(harvester.rotation);
+        }
+        
+        // Main harvester body
+        const bodyColor = this.getHarvesterBodyColor(harvester);
+        
+        // Body shadow/outline
+        this.ctx.fillStyle = '#1A1A1A';
+        this.ctx.fillRect(-width/2 - 1, -height/2 - 1, width + 2, height + 2);
+        
+        // Main body chassis
+        this.ctx.fillStyle = bodyColor;
+        this.ctx.fillRect(-width/2, -height/2, width, height);
+        
+        // Cabin (driver compartment)
+        this.ctx.fillStyle = '#2A2A2A';
+        this.ctx.fillRect(-width/4, -height/2, width/2, height/3);
+        
+        // Windows
+        this.ctx.fillStyle = '#87CEEB';
+        this.ctx.fillRect(-width/5, -height/2 + 2, width/2.5, height/6);
+        
+        // Mining equipment based on state
+        this.renderHarvesterEquipment(harvester, width, height, time);
+        
+        // Treads/wheels
+        this.renderHarvesterTreads(harvester, width, height, time);
+        
+        // Exhaust and engine effects
+        this.renderHarvesterExhaust(harvester, width, height, time);
+        
+        this.ctx.restore();
+        
+        // UI elements (rendered in world space, not rotated)
+        this.renderHarvesterUI(harvester, screenPos, width, height);
+    }
+    
+    getHarvesterBodyColor(harvester) {
+        const baseColor = {
+            'idle': { r: 180, g: 180, b: 60 },      // Yellow-brown
+            'moving': { r: 100, g: 180, b: 100 },   // Green
+            'harvesting': { r: 200, g: 130, b: 50 }, // Orange-brown  
+            'returning': { r: 100, g: 150, b: 200 }  // Blue-gray
+        };
+        
+        const color = baseColor[harvester.state] || baseColor['idle'];
+        return `rgb(${color.r}, ${color.g}, ${color.b})`;
+    }
+    
+    renderHarvesterEquipment(harvester, width, height, time) {
+        // Mining drill/collector at front
+        if (harvester.state === 'harvesting') {
+            // Animated drilling effect
+            const drillRotation = time * 10;
+            this.ctx.save();
+            this.ctx.translate(width/2, 0);
+            this.ctx.rotate(drillRotation);
+            
+            // Drill bit
+            this.ctx.fillStyle = '#333333';
+            this.ctx.fillRect(-3, -6, 6, 12);
+            this.ctx.fillRect(-6, -3, 12, 6);
+            
+            this.ctx.restore();
+            
+            // Spice collection particles
+            for (let i = 0; i < 3; i++) {
+                const particleX = width/2 + Math.cos(time * 5 + i) * 8;
+                const particleY = Math.sin(time * 7 + i) * 4;
+                this.ctx.fillStyle = `rgba(255, 215, 0, ${0.5 + 0.3 * Math.sin(time * 8 + i)})`;
+                this.ctx.fillRect(particleX - 1, particleY - 1, 2, 2);
+            }
+        } else {
+            // Static mining equipment
+            this.ctx.fillStyle = '#444444';
+            this.ctx.fillRect(width/2 - 2, -height/4, 4, height/2);
+        }
+        
+        // Cargo container
+        const cargoHeight = height * 0.6;
+        const cargoFillHeight = cargoHeight * harvester.getCargoPercentage();
+        
+        // Container outline
+        this.ctx.strokeStyle = '#333333';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(-width/3, -cargoHeight/2, width/1.5, cargoHeight);
+        
+        // Cargo fill (spice)
+        if (cargoFillHeight > 0) {
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.fillRect(-width/3 + 1, cargoHeight/2 - cargoFillHeight - 1, width/1.5 - 2, cargoFillHeight);
+            
+            // Sparkling spice effect
+            if (harvester.currentCargo > 0) {
+                for (let i = 0; i < 4; i++) {
+                    const sparkleX = -width/3 + Math.random() * (width/1.5);
+                    const sparkleY = cargoHeight/2 - cargoFillHeight + Math.random() * cargoFillHeight;
+                    const sparkleAlpha = 0.3 + 0.4 * Math.sin(time * 15 + i);
+                    this.ctx.fillStyle = `rgba(255, 255, 255, ${sparkleAlpha})`;
+                    this.ctx.fillRect(sparkleX - 0.5, sparkleY - 0.5, 1, 1);
                 }
             }
+        }
+    }
+    
+    renderHarvesterTreads(harvester, width, height, time) {
+        // Track movement animation
+        const trackOffset = (harvester.state === 'moving') ? (time * 100) % 8 : 0;
+        
+        // Left tread
+        this.ctx.fillStyle = '#2A2A2A';
+        this.ctx.fillRect(-width/2, height/3, width, height/6);
+        
+        // Right tread  
+        this.ctx.fillRect(-width/2, -height/2, width, height/6);
+        
+        // Tread details (moving segments)
+        this.ctx.fillStyle = '#444444';
+        for (let i = 0; i < width; i += 8) {
+            const segmentX = -width/2 + i + trackOffset;
+            if (segmentX < width/2) {
+                this.ctx.fillRect(segmentX, height/3, 4, height/6);
+                this.ctx.fillRect(segmentX, -height/2, 4, height/6);
+            }
+        }
+    }
+    
+    renderHarvesterExhaust(harvester, width, height, time) {
+        // Engine exhaust (back of harvester)
+        if (harvester.state === 'moving' || harvester.state === 'harvesting') {
+            const exhaustPulse = 0.4 + 0.3 * Math.sin(time * 6);
+            this.ctx.fillStyle = `rgba(100, 100, 100, ${exhaustPulse})`;
+            
+            // Multiple exhaust pipes
+            for (let i = 0; i < 2; i++) {
+                const exhaustY = -height/4 + i * height/2;
+                this.ctx.fillRect(-width/2 - 6, exhaustY - 2, 6, 4);
+                
+                // Smoke particles
+                for (let j = 1; j <= 3; j++) {
+                    const smokeX = -width/2 - 6 - j * 4;
+                    const smokeY = exhaustY + Math.sin(time * 4 + j) * 2;
+                    const smokeAlpha = exhaustPulse * (1 - j * 0.2);
+                    this.ctx.fillStyle = `rgba(80, 80, 80, ${smokeAlpha})`;
+                    this.ctx.fillRect(smokeX - 1, smokeY - 1, 2, 2);
+                }
+            }
+        }
+        
+        // Status light
+        const statusColor = harvester.state === 'idle' ? '#FF0000' : '#00FF00';
+        this.ctx.fillStyle = statusColor;
+        this.ctx.fillRect(-width/2 + 2, -height/2 + 2, 3, 3);
+    }
+    
+    renderHarvesterUI(harvester, screenPos, width, height) {
+        // Enhanced cargo bar
+        if (harvester.currentCargo > 0) {
+            const cargoPercent = harvester.getCargoPercentage();
+            const cargoBarHeight = 6 * this.camera.zoom;
+            const cargoBarWidth = width * 1.2;
+            const cargoBarX = screenPos.x - (cargoBarWidth - width) / 2;
+            const cargoBarY = screenPos.y - 12 * this.camera.zoom;
+            
+            // Background
+            this.ctx.fillStyle = '#333333';
+            this.ctx.fillRect(cargoBarX, cargoBarY, cargoBarWidth, cargoBarHeight);
+            
+            // Cargo fill with gradient effect
+            const gradient = this.ctx.createLinearGradient(cargoBarX, cargoBarY, cargoBarX + cargoBarWidth, cargoBarY);
+            gradient.addColorStop(0, '#FFD700');
+            gradient.addColorStop(1, '#FFA500');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(cargoBarX, cargoBarY, cargoBarWidth * cargoPercent, cargoBarHeight);
+            
+            // Cargo bar border
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(cargoBarX, cargoBarY, cargoBarWidth, cargoBarHeight);
+            
+            // Cargo text
+            if (this.camera.zoom > 0.6) {
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.font = `${8 * this.camera.zoom}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(
+                    `${harvester.currentCargo.toFixed(1)}/${harvester.cargoCapacity}`,
+                    screenPos.x + width/2,
+                    cargoBarY - 2
+                );
+            }
+        }
+        
+        // Health bar (only if damaged)
+        if (harvester.currentHealth < harvester.maxHealth) {
+            const healthPercent = harvester.getHealthPercentage();
+            const healthBarHeight = 4 * this.camera.zoom;
+            const healthBarWidth = width * 1.2;
+            const healthBarX = screenPos.x - (healthBarWidth - width) / 2;
+            const healthBarY = screenPos.y + height + 4 * this.camera.zoom;
+            
+            // Health background
+            this.ctx.fillStyle = '#333333';
+            this.ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+            
+            // Health fill (color based on health level)
+            const healthColor = healthPercent > 0.6 ? '#00FF00' : 
+                              healthPercent > 0.3 ? '#FFFF00' : '#FF0000';
+            this.ctx.fillStyle = healthColor;
+            this.ctx.fillRect(healthBarX, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
+            
+            // Health border
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+        }
+        
+        // State indicator
+        if (this.camera.zoom > 0.8) {
+            this.ctx.fillStyle = harvester.getStateColor();
+            this.ctx.font = `bold ${10 * this.camera.zoom}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(
+                harvester.state.toUpperCase(),
+                screenPos.x + width/2,
+                screenPos.y + height + 20 * this.camera.zoom
+            );
+        }
+        
+        // Selection indicator
+        if (harvester.isSelected) {
+            this.ctx.strokeStyle = '#00FFFF';
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([5, 3]);
+            this.ctx.strokeRect(screenPos.x - 4, screenPos.y - 4, width + 8, height + 8);
+            this.ctx.setLineDash([]);
+        }
+        
+        // ID number (for debugging/identification)
+        if (this.layers.debug && this.camera.zoom > 0.5) {
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = `${6 * this.camera.zoom}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(
+                `H${harvester.id}`,
+                screenPos.x + width/2,
+                screenPos.y - 15 * this.camera.zoom
+            );
+        }
+    }
+    
+    renderEnemy(enemy) {
+        const screenPos = this.camera.worldToScreen(enemy.x, enemy.y);
+        const size = enemy.size * this.camera.zoom;
+        const time = Date.now() * 0.001; // Time for animations
+        
+        // Save context for transformations
+        this.ctx.save();
+        this.ctx.translate(screenPos.x + size/2, screenPos.y + size/2);
+        
+        // Add rotation based on movement direction
+        if (enemy.direction !== undefined) {
+            this.ctx.rotate(enemy.direction);
+        }
+        
+        // Damage flash effect
+        let flashIntensity = 0;
+        if (enemy.damageFlash && enemy.damageFlash > 0) {
+            flashIntensity = enemy.damageFlash;
+        }
+        
+        // Render based on enemy type
+        switch (enemy.type) {
+            case 'Raider':
+                this.renderRaider(enemy, size, time, flashIntensity);
+                break;
+            case 'Heavy':
+                this.renderHeavyUnit(enemy, size, time, flashIntensity);
+                break;
+            case 'Scout':
+                this.renderScout(enemy, size, time, flashIntensity);
+                break;
+            default:
+                this.renderRaider(enemy, size, time, flashIntensity);
+                break;
+        }
+        
+        this.ctx.restore();
+        
+        // Render UI elements (health bar, etc.) in world space
+        this.renderEnemyUI(enemy, screenPos, size);
+    }
+    
+    renderRaider(enemy, size, time, flashIntensity) {
+        // Main body - angular armored look
+        const bodyColor = flashIntensity > 0 ? 
+            `rgb(255, ${Math.floor(128 * (1 - flashIntensity))}, ${Math.floor(128 * (1 - flashIntensity))})` : 
+            '#8B0000';
+        
+        // Body outline
+        this.ctx.fillStyle = '#2B0000';
+        this.ctx.fillRect(-size/2 - 1, -size/2 - 1, size + 2, size + 2);
+        
+        // Main body
+        this.ctx.fillStyle = bodyColor;
+        this.ctx.fillRect(-size/2, -size/2, size, size);
+        
+        // Angular armor plates
+        this.ctx.fillStyle = '#A50000';
+        this.ctx.fillRect(-size/2, -size/2, size/3, size/3);
+        this.ctx.fillRect(size/6, -size/2, size/3, size/3);
+        this.ctx.fillRect(-size/2, size/6, size/3, size/3);
+        
+        // Weapon barrel
+        this.ctx.fillStyle = '#333333';
+        this.ctx.fillRect(size/4, -size/8, size/2, size/4);
+        
+        // Engine glow (pulsing effect)
+        const engineGlow = 0.5 + 0.3 * Math.sin(time * 8);
+        this.ctx.fillStyle = `rgba(255, 100, 0, ${engineGlow})`;
+        this.ctx.fillRect(-size/2, size/3, size, size/6);
+        
+        // Veterancy indicators
+        if (enemy.veterancyLevel > 0) {
+            this.ctx.fillStyle = '#FFD700';
+            for (let i = 0; i < enemy.veterancyLevel; i++) {
+                this.ctx.fillRect(-size/2 + i * 3, -size/2 - 6, 2, 4);
+            }
+        }
+        
+        // State-based effects
+        if (enemy.state === 'attacking') {
+            // Muzzle flash
+            this.ctx.fillStyle = `rgba(255, 255, 0, ${0.8 + 0.2 * Math.sin(time * 20)})`;
+            this.ctx.fillRect(size/2, -size/8, size/4, size/4);
+            
+            // Recoil effect
+            this.ctx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+            this.ctx.fillRect(size/2 + size/4, -size/12, size/8, size/6);
+        }
+        
+        // Movement dust trail
+        if (enemy.state === 'seeking' || enemy.state === 'fleeing') {
+            const dustAlpha = 0.2 + 0.1 * Math.sin(time * 6);
+            this.ctx.fillStyle = `rgba(194, 178, 128, ${dustAlpha})`;
+            for (let i = 1; i <= 2; i++) {
+                this.ctx.fillRect(-size/2 - i * 6, size/4, size/4, size/8);
+            }
+        }
+    }
+    
+    renderHeavyUnit(enemy, size, time, flashIntensity) {
+        const bodyColor = flashIntensity > 0 ? 
+            `rgb(255, ${Math.floor(75 * (1 - flashIntensity))}, ${Math.floor(75 * (1 - flashIntensity))})` : 
+            '#4B0000';
+        
+        // Larger, bulkier design
+        this.ctx.fillStyle = '#1B0000';
+        this.ctx.fillRect(-size/2 - 2, -size/2 - 2, size + 4, size + 4);
+        
+        this.ctx.fillStyle = bodyColor;
+        this.ctx.fillRect(-size/2, -size/2, size, size);
+        
+        // Heavy armor plating
+        this.ctx.fillStyle = '#600000';
+        this.ctx.fillRect(-size/3, -size/3, size/1.5, size/1.5);
+        
+        // Dual weapon systems
+        this.ctx.fillStyle = '#222222';
+        this.ctx.fillRect(size/3, -size/6, size/2, size/8);
+        this.ctx.fillRect(size/3, size/12, size/2, size/8);
+        
+        // Heavy treads
+        this.ctx.fillStyle = '#333333';
+        this.ctx.fillRect(-size/2, -size/2, size, size/4);
+        this.ctx.fillRect(-size/2, size/4, size, size/4);
+        
+        // Engine exhaust
+        const exhaustPulse = 0.4 + 0.3 * Math.sin(time * 6);
+        this.ctx.fillStyle = `rgba(100, 100, 100, ${exhaustPulse})`;
+        this.ctx.fillRect(-size/2 - size/4, -size/8, size/4, size/4);
+        
+        // Veterancy indicators (larger for heavy units)
+        if (enemy.veterancyLevel > 0) {
+            this.ctx.fillStyle = '#FFD700';
+            for (let i = 0; i < enemy.veterancyLevel; i++) {
+                this.ctx.fillRect(-size/2 + i * 4, -size/2 - 8, 3, 6);
+            }
+        }
+    }
+    
+    renderScout(enemy, size, time, flashIntensity) {
+        const bodyColor = flashIntensity > 0 ? 
+            `rgb(255, ${Math.floor(200 * (1 - flashIntensity))}, ${Math.floor(69 * (1 - flashIntensity))})` : 
+            '#FF4500';
+        
+        // Sleek, fast design
+        this.ctx.fillStyle = '#8B2500';
+        
+        // Main body (diamond shape for speed)
+        this.ctx.beginPath();
+        this.ctx.moveTo(size/2, 0);
+        this.ctx.lineTo(0, -size/3);
+        this.ctx.lineTo(-size/2, 0);
+        this.ctx.lineTo(0, size/3);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.fillStyle = bodyColor;
+        this.ctx.beginPath();
+        this.ctx.moveTo(size/3, 0);
+        this.ctx.lineTo(0, -size/4);
+        this.ctx.lineTo(-size/3, 0);
+        this.ctx.lineTo(0, size/4);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        // Speed trail effect
+        if (enemy.speed > 50) {
+            this.ctx.fillStyle = `rgba(255, 69, 0, ${0.3 * Math.sin(time * 10)})`;
+            for (let i = 1; i <= 3; i++) {
+                this.ctx.fillRect(-size/2 - i * 4, -size/6, size/3, size/3);
+            }
+        }
+        
+        // Scout scanner effect (when seeking)
+        if (enemy.state === 'seeking') {
+            const scanPulse = 0.3 + 0.2 * Math.sin(time * 4);
+            this.ctx.strokeStyle = `rgba(0, 255, 255, ${scanPulse})`;
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, size * 1.5, 0, Math.PI * 2);
+            this.ctx.stroke();
+        }
+        
+        // Stealth shimmer effect
+        if (enemy.veterancyLevel > 1) {
+            const shimmer = 0.1 + 0.05 * Math.sin(time * 12);
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${shimmer})`;
+            this.ctx.fill();
+        }
+    }
+    
+    renderEnemyUI(enemy, screenPos, size) {
+        // Health bar
+        if (enemy.currentHealth < enemy.maxHealth) {
+            const healthPercent = enemy.currentHealth / enemy.maxHealth;
+            const healthBarHeight = 4 * this.camera.zoom;
+            const healthBarWidth = size * 1.2;
+            const healthBarX = screenPos.x - (healthBarWidth - size) / 2;
+            const healthBarY = screenPos.y - 10 * this.camera.zoom;
+            
+            // Health bar background
+            this.ctx.fillStyle = '#333333';
+            this.ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+            
+            // Health bar fill
+            const healthColor = healthPercent > 0.6 ? '#00FF00' : 
+                              healthPercent > 0.3 ? '#FFFF00' : '#FF0000';
+            this.ctx.fillStyle = healthColor;
+            this.ctx.fillRect(healthBarX, healthBarY, healthBarWidth * healthPercent, healthBarHeight);
+            
+            // Health bar border
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+        }
+        
+        // Type indicator
+        if (this.camera.zoom > 0.8) {
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = `${8 * this.camera.zoom}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(enemy.type, screenPos.x + size/2, screenPos.y + size + 15 * this.camera.zoom);
+        }
+        
+        // State indicator (for debugging/visual feedback)
+        if (this.layers.debug) {
+            this.ctx.fillStyle = '#FFFF00';
+            this.ctx.font = `${6 * this.camera.zoom}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(enemy.state, screenPos.x + size/2, screenPos.y + size + 25 * this.camera.zoom);
         }
     }
     

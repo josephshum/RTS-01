@@ -19,7 +19,7 @@ export class GunTurret extends Building {
         this.damage = 25;
         this.attackCooldown = 2.0; // seconds between attacks
         this.lastAttackTime = 0;
-        this.rotationSpeed = Math.PI; // radians per second
+        this.rotationSpeed = Math.PI * 1.5; // radians per second (increased for responsiveness)
         
         // Targeting
         this.currentTarget = null;
