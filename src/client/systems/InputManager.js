@@ -95,6 +95,16 @@ export class InputManager {
             
             this.mouse.isDragging = false;
             this.canvas.style.cursor = 'grab';
+        } else if (event.button === 2) { // Right mouse button
+            // Always register right clicks (don't worry about dragging for right-click)
+            const worldPos = this.camera.screenToWorld(this.mouse.x, this.mouse.y);
+            this.mouse.clickQueue.push({
+                x: worldPos.x,
+                y: worldPos.y,
+                button: event.button,
+                timestamp: Date.now()
+            });
+            console.log(`🖱️ Right-click detected at (${Math.round(worldPos.x)}, ${Math.round(worldPos.y)})`);
         }
     }
     

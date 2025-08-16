@@ -4,6 +4,11 @@ import { Renderer } from '../systems/Renderer.js';
 import { Pathfinder } from '../systems/Pathfinder.js';
 import { ResourceManager } from '../systems/ResourceManager.js';
 import { BuildingManager } from '../systems/BuildingManager.js';
+import { BuildingMenu } from '../systems/BuildingMenu.js';
+import { UnitMenu } from '../systems/UnitMenu.js';
+import { UnitManager } from '../systems/UnitManager.js';
+import { VisualEffects } from '../systems/VisualEffects.js';
+import { ResourceBarManager } from '../systems/ResourceBarManager.js';
 import { EnemyManager } from '../systems/EnemyManager.js';
 import { CombatManager } from '../systems/CombatManager.js';
 import { FactionManager } from '../systems/FactionManager.js';
@@ -14,6 +19,7 @@ import { Depot } from '../entities/Depot.js';
 import { ConstructionYard } from '../entities/ConstructionYard.js';
 import { SpiceRefinery } from '../entities/SpiceRefinery.js';
 import { GunTurret } from '../entities/GunTurret.js';
+import { Barracks } from '../entities/Barracks.js';
 import { Projectile } from '../entities/Projectile.js';
 import { AtreidesInfantry } from '../entities/AtreidesInfantry.js';
 import { HarkonnenTrooper } from '../entities/HarkonnenTrooper.js';
@@ -37,6 +43,11 @@ export class Game {
         this.pathfinder = null;
         this.resourceManager = null;
         this.buildingManager = null;
+        this.buildingMenu = null;
+        this.unitMenu = null;
+        this.unitManager = null;
+        this.visualEffects = null;
+        this.resourceBarManager = null;
         this.enemyManager = null;
         this.combatManager = null;
         this.factionManager = null;
@@ -48,6 +59,7 @@ export class Game {
         
         // Game entities
         this.harvesters = [];
+        this.playerUnits = [];
         this.depot = null;
         this.nextHarvesterId = 1;
         
@@ -99,6 +111,26 @@ export class Game {
         this.buildingManager.registerBuildingType('ConstructionYard', ConstructionYard);
         this.buildingManager.registerBuildingType('SpiceRefinery', SpiceRefinery);
         this.buildingManager.registerBuildingType('GunTurret', GunTurret);
+        this.buildingManager.registerBuildingType('Barracks', Barracks);
+        
+        // Initialize building menu
+        this.buildingMenu = new BuildingMenu(this.buildingManager, (buildingType) => {
+            console.log(`🏗️ Building selected from menu: ${buildingType}`);
+        });
+        
+        // Initialize unit menu
+        this.unitMenu = new UnitMenu((unitType, barracks) => {
+            console.log(`🎖️ Unit ordered: ${unitType} from barracks at (${barracks.gridX}, ${barracks.gridY})`);
+        });
+        
+        // Initialize unit manager for selection and commands
+        this.unitManager = new UnitManager();
+        
+        // Initialize visual effects system
+        this.visualEffects = new VisualEffects();
+        
+        // Initialize resource bar manager
+        this.resourceBarManager = new ResourceBarManager();
         
         // Create depot at world center
         this.depot = new Depot(0, 0);
@@ -122,6 +154,10 @@ export class Game {
         console.log('🔬 Technology tree initialized');
         console.log('🏭 Depot created at world center');
         console.log('🏗️ Initial construction yard built');
+        
+        // Make game instance globally available for visual effects
+        window.game = this;
+        console.log('🌍 Game instance available globally');
         
         // Handle canvas resize
         this.setupResizeHandler();
@@ -206,6 +242,7 @@ export class Game {
         this.buildingManager.update(deltaTime, {
             depot: this.depot,
             harvesters: this.harvesters,
+            playerUnits: this.playerUnits,
             enemies: this.enemyManager ? this.enemyManager.enemies : []
         });
         
@@ -242,8 +279,41 @@ export class Game {
         // Remove destroyed harvesters (none for now, but future-proofing)
         this.harvesters = this.harvesters.filter(h => h.state !== 'destroyed');
         
+        // Update player units
+        for (const unit of this.playerUnits) {
+            unit.update(deltaTime, this.getGameState());
+        }
+        
+        // Remove destroyed units
+        this.playerUnits = this.playerUnits.filter(unit => unit.state !== 'destroyed');
+        
         // Update technology tree
         this.technologyTree.update(deltaTime);
+        
+        // Update building menu
+        if (this.buildingMenu) {
+            this.buildingMenu.update(this.getGameState());
+        }
+        
+        // Update resource bar
+        if (this.resourceBarManager) {
+            this.resourceBarManager.update(this.getGameState());
+        }
+        
+        // Update unit menu
+        if (this.unitMenu) {
+            this.unitMenu.update();
+        }
+        
+        // Update unit manager
+        if (this.unitManager) {
+            this.unitManager.update(deltaTime);
+        }
+        
+        // Update visual effects
+        if (this.visualEffects) {
+            this.visualEffects.update(deltaTime);
+        }
         
         // Update AI players
         this.updateAIPlayers(deltaTime);
@@ -259,11 +329,15 @@ export class Game {
         const gameState = {
             spiceNodes: this.resourceManager.spiceNodes,
             harvesters: this.harvesters,
+            playerUnits: this.playerUnits,
             depot: this.depot,
+            pathfinder: this.pathfinder,
             buildings: this.buildingManager.buildings,
             enemies: this.enemyManager.enemies,
             combatManager: this.combatManager,
             buildingManager: this.buildingManager,
+            unitManager: this.unitManager,
+            visualEffects: this.visualEffects,
             mouseWorldPosition: mouseWorldPos
         };
         
@@ -399,18 +473,40 @@ export class Game {
                     // Try to place building
                     this.buildingManager.tryPlaceBuilding(click.x, click.y, this.renderer.terrain);
                 } else {
-                    // Check if clicking on a building first
-                    const building = this.buildingManager.selectBuildingAt(click.x, click.y);
-                    if (!building) {
-                        // Spawn harvester if not clicking on building
-                        this.spawnHarvester(click.x, click.y);
+                    // Check if clicking on a unit first
+                    const selectedUnit = this.unitManager.selectUnitAt(click.x, click.y, this.playerUnits);
+                    
+                    if (selectedUnit) {
+                        // Handle unit selection
+                        this.unitManager.selectUnit(selectedUnit);
+                    } else {
+                        // Check if clicking on a building
+                        const building = this.buildingManager.selectBuildingAt(click.x, click.y);
+                        if (building) {
+                            // Clear unit selection when selecting buildings
+                            this.unitManager.clearSelection();
+                            this.handleBuildingClick(building);
+                        } else {
+                            // Clear unit selection and spawn harvester if not clicking on anything
+                            this.unitManager.clearSelection();
+                            this.spawnHarvester(click.x, click.y);
+                        }
                     }
                 }
             } else if (click.button === 2) { // Right mouse button
-                // Right click to exit build mode or deselect
+                console.log(`🎯 Processing right-click at (${Math.round(click.x)}, ${Math.round(click.y)})`);
+                
+                // Right click to exit build mode or issue move commands
                 if (this.buildingManager.isPlacementMode) {
+                    console.log('🚫 Exiting build mode');
                     this.buildingManager.exitPlacementMode();
+                } else if (this.unitManager.hasSelection()) {
+                    console.log(`📋 Issuing move command to ${this.unitManager.getSelectedUnits().length} units`);
+                    // Issue move command to selected units
+                    this.unitManager.issueMoveCommand(click.x, click.y);
                 } else {
+                    console.log('🔄 No units selected, clearing building selection');
+                    // Clear selections if no units selected
                     this.buildingManager.selectedBuilding = null;
                 }
             }
@@ -418,16 +514,33 @@ export class Game {
     }
     
     handleBuildModeToggle() {
-        if (this.buildingManager.isPlacementMode) {
-            this.buildingManager.exitPlacementMode();
+        // Toggle building menu instead of cycling through buildings
+        if (this.buildingMenu) {
+            this.buildingMenu.toggle();
         } else {
-            // Cycle through available building types
-            const availableBuildings = ['SpiceRefinery', 'GunTurret', 'ConstructionYard'];
-            const currentIndex = this.currentBuildingIndex || 0;
-            const buildingType = availableBuildings[currentIndex % availableBuildings.length];
-            
-            this.buildingManager.enterPlacementMode(buildingType);
-            this.currentBuildingIndex = (currentIndex + 1) % availableBuildings.length;
+            // Fallback to old system if menu not available
+            if (this.buildingManager.isPlacementMode) {
+                this.buildingManager.exitPlacementMode();
+            } else {
+                const availableBuildings = ['SpiceRefinery', 'GunTurret', 'ConstructionYard', 'Barracks'];
+                const currentIndex = this.currentBuildingIndex || 0;
+                const buildingType = availableBuildings[currentIndex % availableBuildings.length];
+                
+                this.buildingManager.enterPlacementMode(buildingType);
+                this.currentBuildingIndex = (currentIndex + 1) % availableBuildings.length;
+            }
+        }
+    }
+
+    handleBuildingClick(building) {
+        console.log(`🏢 Clicked on ${building.type} at (${building.gridX}, ${building.gridY})`);
+        
+        // If clicking on a barracks, open the unit menu
+        if (building.type === 'Barracks' && building.isConstructed && building.isActive) {
+            this.unitMenu.show(building);
+        } else {
+            // For other buildings, just show info (future feature)
+            console.log(`ℹ️ Building info: ${building.type} - Health: ${building.currentHealth}/${building.maxHealth}`);
         }
     }
     
@@ -611,6 +724,87 @@ export class Game {
         
         console.log('🔬 Debug: Research started for all players');
     }
+
+    // Debug method to manually spawn a unit for testing
+    debugSpawnUnit(unitType = 'Infantry', x = 200, y = 200) {
+        // Import Infantry class dynamically
+        import('../entities/Infantry.js').then(module => {
+            const Infantry = module.Infantry;
+            let unit = null;
+            
+            switch (unitType) {
+                case 'Infantry':
+                    unit = new Infantry(x, y, 1);
+                    break;
+                case 'Scout':
+                    unit = new Infantry(x, y, 1);
+                    unit.type = 'Scout';
+                    unit.speed = 80;
+                    unit.maxHealth = 30;
+                    unit.currentHealth = 30;
+                    break;
+                case 'Heavy Infantry':
+                    unit = new Infantry(x, y, 1);
+                    unit.type = 'Heavy Infantry';
+                    unit.speed = 40;
+                    unit.maxHealth = 80;
+                    unit.currentHealth = 80;
+                    unit.damage = 25;
+                    break;
+                default:
+                    console.warn(`❌ Unknown unit type: ${unitType}`);
+                    return;
+            }
+            
+            if (unit) {
+                this.playerUnits.push(unit);
+                console.log(`🧪 Debug: Spawned ${unitType} at (${x}, ${y}) - Total units: ${this.playerUnits.length}`);
+            }
+        }).catch(error => {
+            console.error('Failed to import Infantry class:', error);
+        });
+    }
+
+    // Debug method to test tracer effects
+    debugTestTracer(startX = 100, startY = 100, endX = 300, endY = 200) {
+        if (!this.visualEffects) {
+            console.log('❌ Visual effects system not initialized');
+            return;
+        }
+        
+        // Create muzzle flash
+        this.visualEffects.createMuzzleFlash(startX, startY, 0, {
+            color: '#FFFF88',
+            size: 8,
+            duration: 0.12
+        });
+        
+        // Create tracer
+        this.visualEffects.createTracer(startX, startY, endX, endY, {
+            color: '#FFD700',
+            width: 3,
+            length: 20,
+            speed: 800
+        });
+        
+        console.log(`🎯 Debug: Created tracer from (${startX}, ${startY}) to (${endX}, ${endY})`);
+    }
+
+    // Get current game state for UI updates
+    getGameState() {
+        return {
+            harvesters: this.harvesters,
+            playerUnits: this.playerUnits,
+            buildings: this.buildingManager.buildings,
+            depot: this.depot,
+            enemies: this.enemyManager.enemies,
+            spice: this.depot ? this.depot.spiceStored : 0,
+            faction: this.playerFaction,
+            camera: this.camera,
+            isPlacementMode: this.buildingManager.isPlacementMode,
+            selectedBuildingType: this.buildingManager.selectedBuildingType
+        };
+    }
 }
 
 // Initialize and start the game when the DOM is loaded
@@ -632,11 +826,13 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  game.getCamera().setZoom(2.0) - Set zoom level');
     console.log('  game.getCamera().moveTo(x, y) - Move camera to position');
     console.log('  game.spawnHarvester(x, y) - Spawn harvester at position');
-    console.log('  game.debugSpawnFactionUnits() - Test faction units');
-    console.log('  game.debugStartResearch() - Start technology research');
-    console.log('  game.researchTechnology("AdvancedShields") - Research specific tech');
-    console.log('  game.getAvailableTechnologies() - Show available research');
-    console.log('  Hold "I" key to show debug information');
+            console.log('  game.debugSpawnFactionUnits() - Test faction units');
+        console.log('  game.debugStartResearch() - Start technology research');
+        console.log('  game.researchTechnology("AdvancedShields") - Research specific tech');
+        console.log('  game.getAvailableTechnologies() - Show available research');
+        console.log('  game.debugSpawnUnit("Infantry", 200, 200) - Spawn unit for testing');
+        console.log('  game.debugTestTracer(100, 100, 300, 200) - Test tracer effects');
+        console.log('  Hold "I" key to show debug information');
     console.log('');
     console.log('🎮 How to Play:');
     console.log('  • Left click to spawn harvesters or place buildings');

@@ -10,6 +10,41 @@
     <div id="game-container">
         <canvas id="game-canvas" width="1200" height="800"></canvas>
         <div id="ui-overlay">
+            <div id="resource-bar">
+                <div class="resource-section">
+                    <div class="resource-icon spice-icon">🌟</div>
+                    <div class="resource-bar-container">
+                        <div class="resource-bar-bg">
+                            <div id="spice-bar" class="resource-bar-fill spice-fill"></div>
+                        </div>
+                        <div class="resource-text">
+                            <span id="spice-amount">0</span> / <span id="spice-capacity">1000</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="resource-section">
+                    <div class="resource-icon energy-icon">⚡</div>
+                    <div class="resource-bar-container">
+                        <div class="resource-bar-bg">
+                            <div id="energy-bar" class="resource-bar-fill energy-fill"></div>
+                        </div>
+                        <div class="resource-text">
+                            <span id="energy-amount">100</span> / <span id="energy-capacity">100</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="resource-section">
+                    <div class="resource-icon population-icon">👥</div>
+                    <div class="resource-bar-container">
+                        <div class="resource-bar-bg">
+                            <div id="population-bar" class="resource-bar-fill population-fill"></div>
+                        </div>
+                        <div class="resource-text">
+                            <span id="population-amount">0</span> / <span id="population-capacity">50</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="controls-info">
                 <h3>Controls:</h3>
                 <p>• Mouse Drag: Pan camera</p>
@@ -17,7 +52,7 @@
                 <p>• Arrow Keys: Move camera</p>
                 <p>• Space: Center view</p>
                 <p>• Left Click: Spawn harvester / Place building</p>
-                <p>• B Key: Cycle building types</p>
+                <p>• B Key: Toggle building menu</p>
                 <p>• E Key: Spawn enemy (testing)</p>
                 <p>• F Key: Cycle factions</p>
                 <p>• Esc: Exit build mode</p>
@@ -34,6 +69,95 @@
                 <p id="building-info">Buildings: 0 | Constructed: 0</p>
                 <p id="build-mode-info">Build Mode: Off</p>
                 <p id="combat-info">Enemies: 0 | Wave: 1</p>
+            </div>
+            <div id="building-menu">
+                <div id="building-menu-header">
+                    <h3>Buildings</h3>
+                    <button id="building-menu-close" class="close-btn">×</button>
+                </div>
+                <div id="building-menu-content">
+                    <div class="building-item" data-building-type="SpiceRefinery">
+                        <canvas class="building-icon" width="64" height="64"></canvas>
+                        <div class="building-info">
+                            <div class="building-name">Spice Refinery</div>
+                            <div class="building-cost">Cost: 80 Spice</div>
+                            <div class="building-desc">Processes spice from harvesters</div>
+                        </div>
+                    </div>
+                    <div class="building-item" data-building-type="GunTurret">
+                        <canvas class="building-icon" width="64" height="64"></canvas>
+                        <div class="building-info">
+                            <div class="building-name">Gun Turret</div>
+                            <div class="building-cost">Cost: 40 Spice</div>
+                            <div class="building-desc">Defensive structure</div>
+                        </div>
+                    </div>
+                    <div class="building-item" data-building-type="ConstructionYard">
+                        <canvas class="building-icon" width="64" height="64"></canvas>
+                        <div class="building-info">
+                            <div class="building-name">Construction Yard</div>
+                            <div class="building-cost">Cost: 100 Spice</div>
+                            <div class="building-desc">Builds other structures</div>
+                        </div>
+                    </div>
+                    <div class="building-item" data-building-type="Barracks">
+                        <canvas class="building-icon" width="64" height="64"></canvas>
+                        <div class="building-info">
+                            <div class="building-name">Barracks</div>
+                            <div class="building-cost">Cost: 120 Spice</div>
+                            <div class="building-desc">Produces infantry units</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="building-menu-footer">
+                    <button id="cancel-build-btn" class="action-btn">Cancel Build</button>
+                </div>
+            </div>
+            <div id="unit-menu" class="hidden">
+                <div id="unit-menu-header">
+                    <h3>Unit Production</h3>
+                    <button id="unit-menu-close" class="close-btn">×</button>
+                </div>
+                <div id="unit-menu-content">
+                    <div class="unit-item" data-unit-type="Infantry">
+                        <canvas class="unit-icon" width="48" height="48"></canvas>
+                        <div class="unit-info">
+                            <div class="unit-name">Infantry</div>
+                            <div class="unit-cost">Cost: 30 Spice</div>
+                            <div class="unit-desc">Basic infantry unit</div>
+                            <div class="unit-time">Build Time: 8s</div>
+                        </div>
+                    </div>
+                    <div class="unit-item" data-unit-type="Scout">
+                        <canvas class="unit-icon" width="48" height="48"></canvas>
+                        <div class="unit-info">
+                            <div class="unit-name">Scout</div>
+                            <div class="unit-cost">Cost: 20 Spice</div>
+                            <div class="unit-desc">Fast reconnaissance unit</div>
+                            <div class="unit-time">Build Time: 5s</div>
+                        </div>
+                    </div>
+                    <div class="unit-item" data-unit-type="Heavy Infantry">
+                        <canvas class="unit-icon" width="48" height="48"></canvas>
+                        <div class="unit-info">
+                            <div class="unit-name">Heavy Infantry</div>
+                            <div class="unit-cost">Cost: 50 Spice</div>
+                            <div class="unit-desc">Armored infantry unit</div>
+                            <div class="unit-time">Build Time: 12s</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="unit-menu-footer">
+                    <div id="production-status">
+                        <div id="current-production">No production active</div>
+                        <div id="production-progress">
+                            <div class="progress-bar">
+                                <div id="production-bar" class="progress-fill"></div>
+                            </div>
+                        </div>
+                        <div id="production-queue">Queue: 0/5</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

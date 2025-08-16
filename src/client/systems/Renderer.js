@@ -106,6 +106,7 @@ export class Renderer {
         if (this.layers.units) this.renderUnits(gameState, bounds);
         if (this.layers.effects) this.renderEffects(gameState, bounds);
         if (this.layers.ui) this.renderUI(gameState);
+        if (this.layers.ui) this.renderSelectionUI(gameState);
         if (this.layers.debug) this.renderDebug(gameState, bounds);
         
         this.lastRenderTime = performance.now() - startTime;
@@ -572,6 +573,15 @@ export class Renderer {
                 const storageBarHeight = 6 * this.camera.zoom;
                 this.ctx.fillStyle = '#FFD700';
                 this.ctx.fillRect(screenPos.x - size/2, screenPos.y + size/2 - 8 * this.camera.zoom, size * storagePercent, storageBarHeight);
+            }
+        }
+        
+        // Render player units
+        if (gameState.playerUnits && gameState.playerUnits.length > 0) {
+            for (const unit of gameState.playerUnits) {
+                if (unit.state === 'destroyed' || !this.camera.isVisible(unit.x, unit.y, 50)) continue;
+                
+                this.renderPlayerUnit(unit);
             }
         }
         
@@ -1120,6 +1130,11 @@ export class Renderer {
             this.ctx.fill();
         }
         
+        // Render visual effects (tracers, muzzle flashes, impacts)
+        if (gameState.visualEffects) {
+            this.renderVisualEffects(gameState.visualEffects);
+        }
+        
         // Render damage numbers
         for (const damageNumber of combatManager.damageNumbers) {
             const screenPos = this.camera.worldToScreen(damageNumber.x, damageNumber.y);
@@ -1199,6 +1214,328 @@ export class Renderer {
     setLayerVisibility(layerName, visible) {
         if (this.layers.hasOwnProperty(layerName)) {
             this.layers[layerName] = visible;
+        }
+    }
+
+    renderPlayerUnit(unit) {
+        const screenPos = this.camera.worldToScreen(unit.x, unit.y);
+        const width = unit.width * this.camera.zoom;
+        const height = unit.height * this.camera.zoom;
+        const centerX = screenPos.x + width / 2;
+        const centerY = screenPos.y + height / 2;
+        
+        this.ctx.save();
+        this.ctx.translate(centerX, centerY);
+        
+        // Rotate based on unit facing direction
+        if (unit.rotation !== undefined) {
+            this.ctx.rotate(unit.rotation);
+        }
+        
+        // Render based on unit type
+        switch (unit.type) {
+            case 'Infantry':
+                this.renderInfantryUnit(unit, width, height);
+                break;
+            case 'Scout':
+                this.renderScoutUnit(unit, width, height);
+                break;
+            case 'Heavy Infantry':
+                this.renderHeavyInfantryUnit(unit, width, height);
+                break;
+            default:
+                this.renderDefaultUnit(unit, width, height);
+        }
+        
+        this.ctx.restore();
+        
+        // Render unit UI elements (health bar, selection indicator)
+        this.renderUnitUI(unit, screenPos, width, height);
+    }
+
+    renderInfantryUnit(unit, width, height) {
+        // Infantry body (blue soldier)
+        this.ctx.fillStyle = '#4169E1';
+        
+        // Head
+        this.ctx.beginPath();
+        this.ctx.arc(0, -height * 0.25, width * 0.15, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Body
+        this.ctx.fillRect(-width * 0.1, -height * 0.1, width * 0.2, height * 0.4);
+        
+        // Arms
+        this.ctx.fillRect(-width * 0.25, -height * 0.05, width * 0.15, width * 0.08);
+        this.ctx.fillRect(width * 0.1, -height * 0.05, width * 0.15, width * 0.08);
+        
+        // Legs
+        this.ctx.fillRect(-width * 0.08, height * 0.25, width * 0.06, height * 0.2);
+        this.ctx.fillRect(width * 0.02, height * 0.25, width * 0.06, height * 0.2);
+        
+        // Weapon (rifle)
+        this.ctx.fillStyle = '#8B4513';
+        this.ctx.fillRect(width * 0.15, -height * 0.1, width * 0.2, width * 0.04);
+    }
+
+    renderScoutUnit(unit, width, height) {
+        // Lighter colored, more agile looking
+        this.ctx.fillStyle = '#32CD32';
+        
+        // Smaller, more agile appearance
+        this.ctx.beginPath();
+        this.ctx.arc(0, -height * 0.2, width * 0.12, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.fillRect(-width * 0.08, -height * 0.05, width * 0.16, height * 0.3);
+        
+        // Equipment pack
+        this.ctx.fillStyle = '#228B22';
+        this.ctx.fillRect(-width * 0.05, -height * 0.02, width * 0.1, height * 0.15);
+    }
+
+    renderHeavyInfantryUnit(unit, width, height) {
+        // Heavier, more armored appearance
+        this.ctx.fillStyle = '#B22222';
+        
+        // Larger head (helmet)
+        this.ctx.beginPath();
+        this.ctx.arc(0, -height * 0.3, width * 0.18, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Wider body (armor)
+        this.ctx.fillRect(-width * 0.15, -height * 0.15, width * 0.3, height * 0.45);
+        
+        // Thicker arms
+        this.ctx.fillRect(-width * 0.3, -height * 0.1, width * 0.18, width * 0.1);
+        this.ctx.fillRect(width * 0.12, -height * 0.1, width * 0.18, width * 0.1);
+        
+        // Thicker legs
+        this.ctx.fillRect(-width * 0.1, height * 0.25, width * 0.08, height * 0.25);
+        this.ctx.fillRect(width * 0.02, height * 0.25, width * 0.08, height * 0.25);
+        
+        // Heavy weapon
+        this.ctx.fillStyle = '#696969';
+        this.ctx.fillRect(width * 0.2, -height * 0.15, width * 0.25, width * 0.08);
+    }
+
+    renderDefaultUnit(unit, width, height) {
+        // Generic unit appearance
+        this.ctx.fillStyle = '#808080';
+        
+        this.ctx.beginPath();
+        this.ctx.arc(0, -height * 0.25, width * 0.15, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.fillRect(-width * 0.1, -height * 0.1, width * 0.2, height * 0.4);
+        this.ctx.fillRect(-width * 0.08, height * 0.25, width * 0.06, height * 0.2);
+        this.ctx.fillRect(width * 0.02, height * 0.25, width * 0.06, height * 0.2);
+    }
+
+    renderUnitUI(unit, screenPos, width, height) {
+        // Health bar
+        if (unit.currentHealth < unit.maxHealth) {
+            const healthPercent = unit.currentHealth / unit.maxHealth;
+            const barWidth = width;
+            const barHeight = 4 * this.camera.zoom;
+            
+            // Background
+            this.ctx.fillStyle = '#FF0000';
+            this.ctx.fillRect(screenPos.x, screenPos.y - 8 * this.camera.zoom, barWidth, barHeight);
+            
+            // Health
+            this.ctx.fillStyle = '#00FF00';
+            this.ctx.fillRect(screenPos.x, screenPos.y - 8 * this.camera.zoom, barWidth * healthPercent, barHeight);
+        }
+        
+        // Selection indicator
+        if (unit.isSelected) {
+            const pulse = 0.5 + 0.5 * Math.sin(unit.selectionTime * 5);
+            this.ctx.strokeStyle = `rgba(255, 255, 0, ${pulse})`;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.arc(screenPos.x + width/2, screenPos.y + height/2, Math.max(width, height) * 0.7, 0, Math.PI * 2);
+            this.ctx.stroke();
+        }
+    }
+
+    renderSelectionUI(gameState) {
+        if (!gameState.unitManager) return;
+
+        // Render drag selection rectangle
+        const selectionRect = gameState.unitManager.getSelectionRectangle();
+        if (selectionRect) {
+            const startScreen = this.camera.worldToScreen(selectionRect.x, selectionRect.y);
+            const endScreen = this.camera.worldToScreen(
+                selectionRect.x + selectionRect.width, 
+                selectionRect.y + selectionRect.height
+            );
+            
+            const screenWidth = endScreen.x - startScreen.x;
+            const screenHeight = endScreen.y - startScreen.y;
+            
+            // Selection rectangle border
+            this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(startScreen.x, startScreen.y, screenWidth, screenHeight);
+            
+            // Selection rectangle fill
+            this.ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            this.ctx.fillRect(startScreen.x, startScreen.y, screenWidth, screenHeight);
+        }
+
+        // Render move order indicators
+        if (gameState.playerUnits) {
+            for (const unit of gameState.playerUnits) {
+                if (unit.isSelected && unit.targetX !== undefined && unit.targetY !== undefined) {
+                    // Only show target if unit is actually moving to a different location
+                    const distance = Math.sqrt(
+                        Math.pow(unit.targetX - unit.x, 2) + Math.pow(unit.targetY - unit.y, 2)
+                    );
+                    
+                    if (distance > 5) {
+                        const targetScreen = this.camera.worldToScreen(unit.targetX, unit.targetY);
+                        
+                        // Target indicator (crosshair)
+                        this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+                        this.ctx.lineWidth = 2;
+                        const size = 8;
+                        
+                        // Cross lines
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(targetScreen.x - size, targetScreen.y);
+                        this.ctx.lineTo(targetScreen.x + size, targetScreen.y);
+                        this.ctx.moveTo(targetScreen.x, targetScreen.y - size);
+                        this.ctx.lineTo(targetScreen.x, targetScreen.y + size);
+                        this.ctx.stroke();
+                        
+                        // Circle around crosshair
+                        this.ctx.beginPath();
+                        this.ctx.arc(targetScreen.x, targetScreen.y, size * 1.5, 0, Math.PI * 2);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+        }
+    }
+
+    renderVisualEffects(visualEffects) {
+        const effects = visualEffects.getEffects();
+        
+        // Render tracers
+        for (const tracer of effects.tracers) {
+            this.renderTracer(tracer);
+        }
+        
+        // Render muzzle flashes
+        for (const flash of effects.muzzleFlashes) {
+            this.renderMuzzleFlash(flash);
+        }
+        
+        // Render impacts
+        for (const impact of effects.impacts) {
+            this.renderImpact(impact);
+        }
+    }
+
+    renderTracer(tracer) {
+        if (!this.camera.isVisible(tracer.currentX, tracer.currentY, 50)) return;
+        
+        const currentScreen = this.camera.worldToScreen(tracer.currentX, tracer.currentY);
+        
+        // Calculate tracer direction
+        const dx = tracer.endX - tracer.startX;
+        const dy = tracer.endY - tracer.startY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const dirX = dx / distance;
+        const dirY = dy / distance;
+        
+        // Calculate tracer tail position
+        const tailLength = tracer.length * this.camera.zoom;
+        const tailX = currentScreen.x - dirX * tailLength;
+        const tailY = currentScreen.y - dirY * tailLength;
+        
+        // Draw tracer line
+        this.ctx.strokeStyle = tracer.color;
+        this.ctx.lineWidth = tracer.width * this.camera.zoom;
+        this.ctx.lineCap = 'round';
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(tailX, tailY);
+        this.ctx.lineTo(currentScreen.x, currentScreen.y);
+        this.ctx.stroke();
+        
+        // Add glow effect
+        this.ctx.shadowColor = tracer.color;
+        this.ctx.shadowBlur = 8;
+        this.ctx.stroke();
+        this.ctx.shadowBlur = 0;
+    }
+
+    renderMuzzleFlash(flash) {
+        if (!this.camera.isVisible(flash.x, flash.y, 20)) return;
+        
+        const screenPos = this.camera.worldToScreen(flash.x, flash.y);
+        const size = flash.size * this.camera.zoom * flash.intensity;
+        
+        this.ctx.save();
+        this.ctx.translate(screenPos.x, screenPos.y);
+        this.ctx.rotate(flash.rotation);
+        
+        // Main flash
+        const gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+        gradient.addColorStop(0, `rgba(255, 255, 200, ${flash.intensity})`);
+        gradient.addColorStop(0.5, `rgba(255, 255, 0, ${flash.intensity * 0.7})`);
+        gradient.addColorStop(1, 'transparent');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, size, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Flash streaks
+        this.ctx.strokeStyle = `rgba(255, 255, 100, ${flash.intensity})`;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(-size * 0.5, 0);
+        this.ctx.lineTo(size * 1.5, 0);
+        this.ctx.moveTo(0, -size * 0.3);
+        this.ctx.lineTo(0, size * 0.3);
+        this.ctx.stroke();
+        
+        this.ctx.restore();
+    }
+
+    renderImpact(impact) {
+        if (!this.camera.isVisible(impact.x, impact.y, impact.maxSize)) return;
+        
+        const screenPos = this.camera.worldToScreen(impact.x, impact.y);
+        const size = impact.currentSize * this.camera.zoom;
+        const alpha = 1.0 - impact.progress;
+        
+        // Main impact burst
+        const gradient = this.ctx.createRadialGradient(
+            screenPos.x, screenPos.y, 0,
+            screenPos.x, screenPos.y, size
+        );
+        gradient.addColorStop(0, `rgba(255, 165, 0, ${alpha})`);
+        gradient.addColorStop(0.5, `rgba(255, 69, 0, ${alpha * 0.7})`);
+        gradient.addColorStop(1, 'transparent');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.arc(screenPos.x, screenPos.y, size, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Render particles
+        for (const particle of impact.particles) {
+            const particleScreen = this.camera.worldToScreen(particle.x, particle.y);
+            const particleAlpha = particle.life / particle.maxLife;
+            
+            this.ctx.fillStyle = `rgba(255, 100, 0, ${particleAlpha})`;
+            this.ctx.beginPath();
+            this.ctx.arc(particleScreen.x, particleScreen.y, 2 * this.camera.zoom, 0, Math.PI * 2);
+            this.ctx.fill();
         }
     }
 } 

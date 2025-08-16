@@ -6,7 +6,7 @@ export class Depot {
         this.height = 64;
         
         // Resource storage
-        this.spiceStored = 0;
+        this.spiceStored = 200;
         this.maxStorage = 1000;
         
         // Health system
